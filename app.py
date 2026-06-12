@@ -3,6 +3,9 @@ import pandas as pd
 import joblib
 import os
 
+from groq_helper import generate_questions
+
+
 # --- Paths for models and data ---
 DATA_FILE = "cleaned_interview_dataset.csv"
 MODEL_ROUND_FILE = "model_round.pkl"
@@ -171,63 +174,91 @@ with col_center:
         "🎓 Experience Level",
         list(le_exp.classes_)
     )
+    
+    # FIX: Actually defining the prediction button inside the center column layout
+    predict_btn = st.button("🔮 Predict Interview", type="primary")
 
-    st.markdown("--- Say Hi! --- 👋")
-    predict_btn = st.button("🚀 Predict Interview")
+# ==========================
+# OUTPUT (Kept outside columns for wider results display, or indent it into `with col_center:` if preferred)
+# ==========================
+
+if predict_btn:
+    if not company_name:
+        st.error("❌ Please select a Company Name from the dropdown.")
+        st.stop()
+
+    with st.spinner("🔮 Predicting your interview insights..."):
+        result = predict_interview(
+            company_name,
+            company_type,
+            job_role,
+            experience
+        )
+
+    # Save prediction in session_state
+    st.session_state.result = result
+
+# -------------------------------
+# Show prediction if available
+# -------------------------------
+
+if "result" in st.session_state:
+    result = st.session_state.result
+
+    st.markdown("## ✨ Prediction Results")
+
+    with st.container(border=True):
+        st.markdown("### 📊 Key Insights")
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.metric(
+                "Total Rounds Expected",
+                result["Total Rounds"]
+            )
+
+        with col2:
+            st.metric(
+                "Overall Difficulty",
+                result["Difficulty"]
+            )
+
+    st.markdown("### 📋 Predicted Round Flow")
+
+    with st.container(border=True):
+        for i, round_name in enumerate(result["Round Flow"], start=1):
+            st.markdown(f"**Round {i}:** `{round_name}`")
+
+    st.markdown("### 📚 Key Topics to Prepare")
+
+    with st.container(border=True):
+        topics = result["Topics"]
+
+        if topics is not None and not topics.empty:
+            for topic, percent in topics.items():
+                st.markdown(f"**{topic}** - `{percent}%`")
+                st.progress(min(int(float(percent)), 100)) # Cast to float safely before int conversion
+
+    # ---------------------------
+    # AI Questions
+    # ---------------------------
+
     st.markdown("---")
+    st.markdown("## 🤖 AI Interview Coach")
 
-    # ==========================
-    # OUTPUT
-    # ==========================
-    if predict_btn:
-        st.markdown("""
-        <script>
-        window.scrollTo({
-            top: document.body.scrollHeight,
-            behavior: 'smooth'
-        });
-        </script>
-        """, unsafe_allow_html=True)
+    if "ai_questions" not in st.session_state:
+        st.session_state.ai_questions = ""
 
-        if not company_name:
-            st.error("❌ Please select a Company Name from the dropdown before predicting.")
-        else:
-            with st.spinner("🔮 Predicting your interview insights..."):
-                result = predict_interview(
-                    company_name,
-                    company_type,
-                    job_role,
-                    experience
-                )
+    if st.button("Generate Expected Questions"):
+        with st.spinner("Generating AI Questions..."):
+            st.session_state.ai_questions = generate_questions(
+                company_name,
+                job_role,
+                experience,
+                result["Difficulty"],
+                result["Round Flow"],
+                result["Topics"]
+            )
 
-                st.markdown("## ✨ Prediction Results")
-
-                with st.container(border=True):
-                    st.markdown("### Key Insights")
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.metric(label="Total Rounds Expected", value=result['Total Rounds'])
-                    with col2:
-                        st.metric(label="Overall Difficulty", value=result['Difficulty'])
-
-                st.markdown("### 📋 Predicted Round Flow")
-                with st.container(border=True):
-                    for i, round_name in enumerate(result["Round Flow"], start=1):
-                        st.markdown(f"**Round {i}:** `{round_name}`")
-
-                st.markdown("### 📚 Key Topics to Prepare")
-                with st.container(border=True):
-                    topics = result["Topics"]
-                    if topics is not None and not topics.empty:
-                        for topic, percent in topics.items():
-                            st.markdown(f"**{topic}** - `{percent}%` ")
-                            st.progress(min(int(percent), 100))
-                    else:
-                        st.info("ℹ️ No specific topics found for this company and role combination in our dataset. Displaying general top topics:")
-                        global_topics = recommend_topics("", "")
-                        if global_topics is not None and not global_topics.empty:
-                            for topic, percent in global_topics.items():
-                                st.markdown(f"**{topic}** - `{percent}%` ")
-                                st.progress(min(int(percent), 100))
-
-    st.markdown("--- Developed by Yash Raygade --- ")
+    if st.session_state.ai_questions:
+        st.markdown(st.session_state.ai_questions)
