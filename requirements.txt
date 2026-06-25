@@ -37,4 +37,6 @@ pandas==3.0.3
 streamlit
 reportlab
 python-dotenv==1.0.1
+scikit-learn==1.6.1
+
 
