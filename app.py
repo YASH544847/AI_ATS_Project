@@ -2,8 +2,8 @@ import streamlit as st
 import pandas as pd
 import joblib
 import os
-
 from groq_helper import generate_questions
+from pdf_generator import create_pdf
 
 
 # --- Paths for models and data ---
@@ -243,22 +243,68 @@ if "result" in st.session_state:
     # AI Questions
     # ---------------------------
 
+
     st.markdown("---")
     st.markdown("## 🤖 AI Interview Coach")
 
-    if "ai_questions" not in st.session_state:
-        st.session_state.ai_questions = ""
+if "ai_questions" not in st.session_state:
+    st.session_state["ai_questions"] = ""
 
-    if st.button("Generate Expected Questions"):
-        with st.spinner("Generating AI Questions..."):
-            st.session_state.ai_questions = generate_questions(
-                company_name,
-                job_role,
-                experience,
-                result["Difficulty"],
-                result["Round Flow"],
-                result["Topics"]
-            )
+if st.button("🚀 Generate Expected Questions"):
 
-    if st.session_state.ai_questions:
-        st.markdown(st.session_state.ai_questions)
+    prompt = f"""
+    You are an interview expert.
+
+    Company: {company_name}
+
+    Role: {job_role}
+
+    Difficulty: {result['Difficulty']}
+
+    Round Flow: {result['Round Flow']}
+
+    Topics: {list(result['Topics'].keys())}
+
+    Generate exactly 5 interview questions
+    for each round.
+    """
+
+    with st.spinner("Generating Questions..."):
+
+        questions = generate_questions(prompt)
+
+        st.session_state["ai_questions"] = questions
+
+        pdf_file = create_pdf(
+            company_name,
+            job_role,
+            experience,
+            result,
+            questions
+        )
+
+        st.session_state["pdf_file"] = pdf_file
+
+
+if "pdf_file" in st.session_state:
+
+    with open(
+        st.session_state["pdf_file"],
+        "rb"
+    ) as file:
+
+        st.download_button(
+            label="📄 Download Interview Report PDF",
+            data=file,
+            file_name="Interview_Report.pdf",
+            mime="application/pdf"
+        )
+
+
+if "ai_questions" in st.session_state and st.session_state["ai_questions"]:
+
+    st.markdown("## 🎯 Expected Interview Questions")
+
+    st.markdown(
+        st.session_state["ai_questions"]
+    )
